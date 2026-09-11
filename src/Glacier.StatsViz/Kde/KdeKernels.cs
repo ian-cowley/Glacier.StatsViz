@@ -142,6 +142,15 @@ public static unsafe class KdeKernels
         ReadOnlySpan<float> samples,
         ReadOnlySpan<float> grid,
         float bandwidth,
+        Span<float> outDensity,
+        Glacier.StatsViz.Core.GpuTarget target)
+        => Glacier.StatsViz.Compute.GpuStatsAccelerator.EvaluateKde(samples, grid, bandwidth, outDensity, target);
+
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    public static void VectorizedKde(
+        ReadOnlySpan<float> samples,
+        ReadOnlySpan<float> grid,
+        float bandwidth,
         Span<float> outDensity)
     {
         if (bandwidth <= 0)
