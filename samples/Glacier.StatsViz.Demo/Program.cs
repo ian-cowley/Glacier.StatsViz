@@ -3,6 +3,7 @@ namespace Glacier.StatsViz.Demo;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using Glacier.Plot.Core;
 using Glacier.Polaris;
 using Glacier.Polaris.Data;
@@ -11,7 +12,7 @@ using Glacier.StatsViz.Kde;
 
 public static class Program
 {
-    public static void Main()
+    public static void Main(string[] args)
     {
         Console.WriteLine("================================================================================");
         Console.WriteLine("       GLACIER.STATSVIZ: STATISTICAL GRAPHICS & SIMD KDE ENGINE (.NET 10)       ");
@@ -168,6 +169,26 @@ public static class Program
         Console.WriteLine("================================================================================");
         Console.WriteLine("         ALL DEMOS COMPLETED SUCCESSFULLY: GLACIER.STATSVIZ IS READY!           ");
         Console.WriteLine("================================================================================");
+
+        bool isHeadless = args.Contains("--headless") || args.Contains("--bench");
+        if (!isHeadless)
+        {
+            try
+            {
+                Console.WriteLine($"\n[Displaying statistical graphics on screen: {path1}]");
+                Process.Start(new ProcessStartInfo(path1) { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"  (Note: could not auto-launch image viewer: {ex.Message})");
+            }
+
+            if (Environment.UserInteractive && !Console.IsInputRedirected)
+            {
+                Console.WriteLine("\n[Press any key to exit...]");
+                Console.ReadKey();
+            }
+        }
     }
 
     private static float NextGaussian(Random rand)
