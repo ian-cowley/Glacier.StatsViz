@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>preview</LangVersion>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TieredPGO>true</TieredPGO>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <NoWarn>$(NoWarn);CS1591;CS8981</NoWarn>
+
+    <!-- NuGet Package Properties -->
+    <PackageId>Glacier.StatsViz</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Ian Cowley</Authors>
+    <Company>Glacier High-Performance Ecosystem</Company>
+    <Description>Declarative statistical graphics grammar and vectorized KDE engine for .NET 10. Native C# alternative to Seaborn featuring AVX-512 Gaussian KDE, violin plots, correlation heatmaps, regression trendlines, and pair plot grids.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/ian-cowley/Glacier.StatsViz</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ian-cowley/Glacier.StatsViz.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>statistics;visualization;seaborn;kde;violin-plot;heatmap;regression;polaris;dataframe;simd;avx512;net10;glacier</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Glacier.Plot" Version="1.0.0" />
+    <PackageReference Include="Glacier.Polaris" Version="1.0.14" />
+    <PackageReference Include="Glacier.Tensor" Version="1.0.0" />
+    <PackageReference Include="SkiaSharp" Version="2.88.9" />
+  </ItemGroup>
+</Project>

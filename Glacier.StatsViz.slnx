@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Glacier.StatsViz/Glacier.StatsViz.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Glacier.StatsViz.Tests/Glacier.StatsViz.Tests.csproj" />
+  </Folder>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/Glacier.StatsViz.Benchmarks/Glacier.StatsViz.Benchmarks.csproj" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/Glacier.StatsViz.Demo/Glacier.StatsViz.Demo.csproj" />
+  </Folder>
+</Solution>
