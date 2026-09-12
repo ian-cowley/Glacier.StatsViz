@@ -175,6 +175,52 @@ public static unsafe class GpuStatsAccelerator
 
         if (useGpu && IsNvidiaAvailable && s_fnKde1D != IntPtr.Zero)
         {
+            if (TryExecuteGpuKde1D(samples, grid, outDensity, numSamples, numGrid, invH2, normFactor))
+                return;
+        }
+
+        // SIMD AVX-512 CPU Fallback
+        KdeKernels.VectorizedKde(samples, grid, bandwidth, outDensity);
+    }
+
+    #endregion
+
+    #region Buffer Pooling
+
+    private static void EnsurePoolBuffers(nuint capSamples, nuint capGrid, nuint capOut)
+    {
+        if (capSamples > s_capSamples)
+        {
+            if (s_dSamples != IntPtr.Zero) CuDriver.MemFree(s_dSamples);
+            CuDriver.MemAlloc(out s_dSamples, capSamples);
+            s_capSamples = capSamples;
+        }
+        if (capGrid > s_capGrid)
+        {
+            if (s_dGrid != IntPtr.Zero) CuDriver.MemFree(s_dGrid);
+            CuDriver.MemAlloc(out s_dGrid, capGrid);
+            s_capGrid = capGrid;
+        }
+        if (capOut > s_capOut)
+        {
+            if (s_dOut != IntPtr.Zero) CuDriver.MemFree(s_dOut);
+            CuDriver.MemAlloc(out s_dOut, capOut);
+            s_capOut = capOut;
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool TryExecuteGpuKde1D(
+        ReadOnlySpan<float> samples,
+        ReadOnlySpan<float> grid,
+        Span<float> outDensity,
+        int numSamples,
+        int numGrid,
+        float invH2,
+        float normFactor)
+    {
+        try
+        {
             nuint bytesSamples = (nuint)(numSamples * sizeof(float));
             nuint bytesGrid = (nuint)(numGrid * sizeof(float));
             nuint bytesOut = (nuint)(numGrid * sizeof(float));
@@ -224,7 +270,7 @@ public static unsafe class GpuStatsAccelerator
                         {
                             CuDriver.CtxSynchronize();
                             CuDriver.MemcpyDtoH((IntPtr)pOut, s_dOut, bytesOut);
-                            return;
+                            return true;
                         }
                     }
                     finally
@@ -236,35 +282,12 @@ public static unsafe class GpuStatsAccelerator
                 }
             }
         }
-
-        // SIMD AVX-512 CPU Fallback
-        KdeKernels.VectorizedKde(samples, grid, bandwidth, outDensity);
-    }
-
-    #endregion
-
-    #region Buffer Pooling
-
-    private static void EnsurePoolBuffers(nuint capSamples, nuint capGrid, nuint capOut)
-    {
-        if (capSamples > s_capSamples)
+        catch
         {
-            if (s_dSamples != IntPtr.Zero) CuDriver.MemFree(s_dSamples);
-            CuDriver.MemAlloc(out s_dSamples, capSamples);
-            s_capSamples = capSamples;
+            return false;
         }
-        if (capGrid > s_capGrid)
-        {
-            if (s_dGrid != IntPtr.Zero) CuDriver.MemFree(s_dGrid);
-            CuDriver.MemAlloc(out s_dGrid, capGrid);
-            s_capGrid = capGrid;
-        }
-        if (capOut > s_capOut)
-        {
-            if (s_dOut != IntPtr.Zero) CuDriver.MemFree(s_dOut);
-            CuDriver.MemAlloc(out s_dOut, capOut);
-            s_capOut = capOut;
-        }
+
+        return false;
     }
 
     #endregion
