@@ -167,68 +167,123 @@ public static unsafe class KdeKernels
         fixed (float* pGrid = grid)
         fixed (float* pOut = outDensity)
         {
-            for (int g = 0; g < numGrid; g++)
+            if (numGrid >= 8 && (long)numSamples * numGrid >= 50_000)
             {
-                float gridVal = pGrid[g];
-                float sum = 0f;
-                int s = 0;
+                IntPtr ptrSamples = (IntPtr)pSamples;
+                IntPtr ptrGrid = (IntPtr)pGrid;
+                IntPtr ptrOut = (IntPtr)pOut;
 
-                if (Avx512F.IsSupported && numSamples >= 16)
+                Parallel.For(0, numGrid, g =>
                 {
-                    var vGrid = Vector512.Create(gridVal);
-                    var vInvH2 = Vector512.Create(invH2);
-                    var acc = Vector512<float>.Zero;
+                    float* pG = (float*)ptrGrid;
+                    float* pS = (float*)ptrSamples;
+                    float* pO = (float*)ptrOut;
 
-                    for (; s <= numSamples - 16; s += 16)
-                    {
-                        var diff = Vector512.Subtract(vGrid, Vector512.Load(pSamples + s));
-                        var diffSq = Vector512.Multiply(diff, diff);
-                        var exponent = Vector512.Multiply(Vector512.Negate(diffSq), vInvH2);
-                        acc = Vector512.Add(acc, FastExpAvx512(exponent));
-                    }
-                    sum += Vector512.Sum(acc);
-                }
-                else if (Avx2.IsSupported && numSamples >= 8)
+                    float gridVal = pG[g];
+                    float sum = EvaluateSingleGridPoint(pS, numSamples, gridVal, invH2);
+                    pO[g] = sum * normFactor;
+                });
+            }
+            else
+            {
+                for (int g = 0; g < numGrid; g++)
                 {
-                    var vGrid = Vector256.Create(gridVal);
-                    var vInvH2 = Vector256.Create(invH2);
-                    var acc = Vector256<float>.Zero;
-
-                    for (; s <= numSamples - 8; s += 8)
-                    {
-                        var diff = Vector256.Subtract(vGrid, Vector256.Load(pSamples + s));
-                        var diffSq = Vector256.Multiply(diff, diff);
-                        var exponent = Vector256.Multiply(Vector256.Negate(diffSq), vInvH2);
-                        acc = Vector256.Add(acc, FastExpAvx2(exponent));
-                    }
-                    sum += Vector256.Sum(acc);
+                    float gridVal = pGrid[g];
+                    float sum = EvaluateSingleGridPoint(pSamples, numSamples, gridVal, invH2);
+                    pOut[g] = sum * normFactor;
                 }
-                else if (AdvSimd.IsSupported && numSamples >= 4)
-                {
-                    var vGrid = Vector128.Create(gridVal);
-                    var vInvH2 = Vector128.Create(invH2);
-                    var acc = Vector128<float>.Zero;
-
-                    for (; s <= numSamples - 4; s += 4)
-                    {
-                        var diff = Vector128.Subtract(vGrid, Vector128.Load(pSamples + s));
-                        var diffSq = Vector128.Multiply(diff, diff);
-                        var exponent = Vector128.Multiply(Vector128.Negate(diffSq), vInvH2);
-                        acc = Vector128.Add(acc, FastExpAdvSimd(exponent));
-                    }
-                    sum += Vector128.Sum(acc);
-                }
-
-                for (; s < numSamples; s++)
-                {
-                    float diff = gridVal - pSamples[s];
-                    float exponent = -(diff * diff) * invH2;
-                    sum += FastExpScalar(exponent);
-                }
-
-                pOut[g] = sum * normFactor;
             }
         }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    private static float EvaluateSingleGridPoint(float* pSamples, int numSamples, float gridVal, float invH2)
+    {
+        float sum = 0f;
+        int s = 0;
+
+        if (Avx512F.IsSupported && numSamples >= 16)
+        {
+            var vGrid = Vector512.Create(gridVal);
+            var vNegInvH2 = Vector512.Create(-invH2);
+            var acc0 = Vector512<float>.Zero;
+            var acc1 = Vector512<float>.Zero;
+
+            for (; s <= numSamples - 32; s += 32)
+            {
+                var diff0 = Vector512.Subtract(vGrid, Vector512.Load(pSamples + s));
+                var diff1 = Vector512.Subtract(vGrid, Vector512.Load(pSamples + s + 16));
+
+                var exp0 = Vector512.Multiply(Vector512.Multiply(diff0, diff0), vNegInvH2);
+                var exp1 = Vector512.Multiply(Vector512.Multiply(diff1, diff1), vNegInvH2);
+
+                acc0 = Vector512.Add(acc0, FastExpAvx512(exp0));
+                acc1 = Vector512.Add(acc1, FastExpAvx512(exp1));
+            }
+
+            if (s <= numSamples - 16)
+            {
+                var diff = Vector512.Subtract(vGrid, Vector512.Load(pSamples + s));
+                var exp = Vector512.Multiply(Vector512.Multiply(diff, diff), vNegInvH2);
+                acc0 = Vector512.Add(acc0, FastExpAvx512(exp));
+                s += 16;
+            }
+
+            sum += Vector512.Sum(Vector512.Add(acc0, acc1));
+        }
+        else if (Avx2.IsSupported && numSamples >= 8)
+        {
+            var vGrid = Vector256.Create(gridVal);
+            var vNegInvH2 = Vector256.Create(-invH2);
+            var acc0 = Vector256<float>.Zero;
+            var acc1 = Vector256<float>.Zero;
+
+            for (; s <= numSamples - 16; s += 16)
+            {
+                var diff0 = Vector256.Subtract(vGrid, Vector256.Load(pSamples + s));
+                var diff1 = Vector256.Subtract(vGrid, Vector256.Load(pSamples + s + 8));
+
+                var exp0 = Vector256.Multiply(Vector256.Multiply(diff0, diff0), vNegInvH2);
+                var exp1 = Vector256.Multiply(Vector256.Multiply(diff1, diff1), vNegInvH2);
+
+                acc0 = Vector256.Add(acc0, FastExpAvx2(exp0));
+                acc1 = Vector256.Add(acc1, FastExpAvx2(exp1));
+            }
+
+            if (s <= numSamples - 8)
+            {
+                var diff = Vector256.Subtract(vGrid, Vector256.Load(pSamples + s));
+                var exp = Vector256.Multiply(Vector256.Multiply(diff, diff), vNegInvH2);
+                acc0 = Vector256.Add(acc0, FastExpAvx2(exp));
+                s += 8;
+            }
+
+            sum += Vector256.Sum(Vector256.Add(acc0, acc1));
+        }
+        else if (AdvSimd.IsSupported && numSamples >= 4)
+        {
+            var vGrid = Vector128.Create(gridVal);
+            var vInvH2 = Vector128.Create(invH2);
+            var acc = Vector128<float>.Zero;
+
+            for (; s <= numSamples - 4; s += 4)
+            {
+                var diff = Vector128.Subtract(vGrid, Vector128.Load(pSamples + s));
+                var diffSq = Vector128.Multiply(diff, diff);
+                var exponent = Vector128.Multiply(Vector128.Negate(diffSq), vInvH2);
+                acc = Vector128.Add(acc, FastExpAdvSimd(exponent));
+            }
+            sum += Vector128.Sum(acc);
+        }
+
+        for (; s < numSamples; s++)
+        {
+            float diff = gridVal - pSamples[s];
+            float exponent = -(diff * diff) * invH2;
+            sum += FastExpScalar(exponent);
+        }
+
+        return sum;
     }
 
     public static float SilvermanBandwidth(ReadOnlySpan<float> samples, float stdDev, float iqr)
