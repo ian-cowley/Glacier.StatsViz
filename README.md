@@ -1,3 +1,5 @@
+![Glacier.StatsViz Banner](assets/banner.jpg)
+
 # 🌊 Glacier.StatsViz
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
