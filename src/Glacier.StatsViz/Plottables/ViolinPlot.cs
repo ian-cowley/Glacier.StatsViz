@@ -24,19 +24,19 @@ public sealed class ViolinPlot : IPlottable
     public bool ShowBox { get; set; } = true;
     public bool ShowMedian { get; set; } = true;
 
-    public ViolinPlot(float centerX, ReadOnlySpan<float> samples, float width = 0.8f, float? bandwidth = null, PlotStyle? style = null)
+    public ViolinPlot(float centerX, float[] samples, float width = 0.8f, float? bandwidth = null, PlotStyle? style = null)
     {
         if (samples.Length == 0)
             throw new ArgumentException("Samples cannot be empty.");
 
         _centerX = centerX;
         _width = width;
-        _samples = samples.ToArray();
-        _stats = DescriptiveStats.Compute(samples);
+        _samples = samples;
+        _stats = DescriptiveStats.Compute(samples.AsSpan());
 
         if (style != null) Style = style;
 
-        float h = bandwidth ?? KdeKernels.SilvermanBandwidth(samples, _stats.StdDev, _stats.IQR);
+        float h = bandwidth ?? KdeKernels.SilvermanBandwidth(samples.AsSpan(), _stats.StdDev, _stats.IQR);
         if (h <= 0) h = 1.0f;
 
         const int gridPoints = 80;
@@ -50,7 +50,7 @@ public sealed class ViolinPlot : IPlottable
 
         for (int i = 0; i < gridPoints; i++) _gridY[i] = yMin + i * step;
 
-        KdeKernels.VectorizedKde(samples, _gridY, h, _density);
+        KdeKernels.VectorizedKde(samples.AsSpan(), _gridY, h, _density);
 
         // Normalize density so max spread matches width * 0.45
         float maxD = 0f;
@@ -61,6 +61,11 @@ public sealed class ViolinPlot : IPlottable
             float scale = (_width * 0.45f) / maxD;
             for (int i = 0; i < gridPoints; i++) _density[i] *= scale;
         }
+    }
+
+    public ViolinPlot(float centerX, ReadOnlySpan<float> samples, float width = 0.8f, float? bandwidth = null, PlotStyle? style = null)
+        : this(centerX, samples.ToArray(), width, bandwidth, style)
+    {
     }
 
     public AxisLimits GetLimits()

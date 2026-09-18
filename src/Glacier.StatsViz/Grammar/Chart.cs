@@ -78,7 +78,7 @@ public sealed class Chart
         {
             var color = _figure.Theme.Palette[categoryIndex % _figure.Theme.Palette.Length];
             var style = new PlotStyle { Color = color, FillAlpha = 150 };
-            var violin = new ViolinPlot(categoryIndex, samples.ToArray(), 0.8f, bandwidth, style)
+            var violin = new ViolinPlot(categoryIndex, samples, 0.8f, bandwidth, style)
             {
                 Label = catName,
                 ShowBox = showBox
@@ -106,7 +106,7 @@ public sealed class Chart
         {
             var color = _figure.Theme.Palette[categoryIndex % _figure.Theme.Palette.Length];
             var style = new PlotStyle { Color = color, FillAlpha = 180 };
-            var box = new BoxPlot(categoryIndex, samples.ToArray(), 0.6f, whiskerMultiplier, style)
+            var box = new BoxPlot(categoryIndex, samples, 0.6f, whiskerMultiplier, style)
             {
                 Label = catName
             };
@@ -204,19 +204,119 @@ public sealed class Chart
         _figure.SaveSvg(filePath, width, height);
     }
 
-    private static Dictionary<string, List<float>> GroupByCategories(ISeries catCol, float[] yVals)
+    private static Dictionary<string, float[]> GroupByCategories(ISeries catCol, float[] yVals)
     {
-        var dict = new Dictionary<string, List<float>>();
-        for (int i = 0; i < catCol.Length; i++)
+        int len = catCol.Length;
+        if (catCol is CategoricalSeries catSeries)
         {
-            string cat = catCol.Get(i)?.ToString() ?? "Unknown";
-            if (!dict.TryGetValue(cat, out var list))
+            var revMap = catSeries.RevMap;
+            var codes = catSeries.Memory.Span;
+            int numCats = revMap.Length;
+            int[] counts = new int[numCats + 1];
+
+            for (int i = 0; i < len; i++)
             {
-                list = new List<float>();
-                dict[cat] = list;
+                if (catSeries.ValidityMask.IsNull(i))
+                {
+                    counts[numCats]++;
+                }
+                else
+                {
+                    uint c = codes[i];
+                    if (c < (uint)numCats) counts[c]++;
+                    else counts[numCats]++;
+                }
             }
-            list.Add(yVals[i]);
+
+            var dict = new Dictionary<string, float[]>();
+            var offsets = new int[numCats + 1];
+            for (int c = 0; c < numCats; c++)
+            {
+                if (counts[c] > 0)
+                {
+                    dict[revMap[c]] = new float[counts[c]];
+                }
+            }
+            if (counts[numCats] > 0)
+            {
+                dict["Unknown"] = new float[counts[numCats]];
+            }
+
+            for (int i = 0; i < len; i++)
+            {
+                if (catSeries.ValidityMask.IsNull(i))
+                {
+                    dict["Unknown"][offsets[numCats]++] = yVals[i];
+                }
+                else
+                {
+                    uint c = codes[i];
+                    if (c < (uint)numCats && counts[c] > 0)
+                    {
+                        dict[revMap[c]][offsets[c]++] = yVals[i];
+                    }
+                    else
+                    {
+                        dict["Unknown"][offsets[numCats]++] = yVals[i];
+                    }
+                }
+            }
+
+            return dict;
         }
-        return dict;
+
+        if (catCol is Utf8StringSeries utf8Series)
+        {
+            var categoryIndexMap = new Dictionary<string, List<int>>();
+            for (int i = 0; i < len; i++)
+            {
+                string cat = utf8Series.ValidityMask.IsNull(i) ? "Unknown" : (utf8Series.GetString(i) ?? "Unknown");
+                if (!categoryIndexMap.TryGetValue(cat, out var idxList))
+                {
+                    idxList = new List<int>();
+                    categoryIndexMap[cat] = idxList;
+                }
+                idxList.Add(i);
+            }
+
+            var dict = new Dictionary<string, float[]>(categoryIndexMap.Count);
+            foreach (var (cat, indices) in categoryIndexMap)
+            {
+                float[] arr = new float[indices.Count];
+                for (int j = 0; j < indices.Count; j++)
+                {
+                    arr[j] = yVals[indices[j]];
+                }
+                dict[cat] = arr;
+            }
+            return dict;
+        }
+
+        // Generic fallback for arbitrary ISeries with index partitioning
+        {
+            var categoryIndexMap = new Dictionary<string, List<int>>();
+            for (int i = 0; i < len; i++)
+            {
+                string cat = catCol.Get(i)?.ToString() ?? "Unknown";
+                if (!categoryIndexMap.TryGetValue(cat, out var idxList))
+                {
+                    idxList = new List<int>();
+                    categoryIndexMap[cat] = idxList;
+                }
+                idxList.Add(i);
+            }
+
+            var dict = new Dictionary<string, float[]>(categoryIndexMap.Count);
+            foreach (var (cat, indices) in categoryIndexMap)
+            {
+                float[] arr = new float[indices.Count];
+                for (int j = 0; j < indices.Count; j++)
+                {
+                    arr[j] = yVals[indices[j]];
+                }
+                dict[cat] = arr;
+            }
+            return dict;
+        }
     }
 }

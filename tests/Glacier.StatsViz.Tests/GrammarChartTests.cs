@@ -109,4 +109,24 @@ public class GrammarChartTests
             if (File.Exists(tempSvg)) File.Delete(tempSvg);
         }
     }
+
+    [Fact]
+    public void Chart_CategoricalGrouping_ZeroBoxingPartitioning()
+    {
+        var cat = CategoricalSeries.FromStrings("Group", ["A", "B", "A", "C", "B", "A", "C"]);
+        var vals = new Float32Series("Value", 7);
+        new float[] { 10f, 20f, 30f, 40f, 50f, 60f, 70f }.CopyTo(vals.Memory.Span);
+
+        var df = new DataFrame([cat, vals]);
+        var chart = Chart.FromDataFrame(df)
+            .Encode(x: "Group", y: "Value")
+            .GeomBox()
+            .GeomViolin();
+
+        var fig = chart.ToGlacierPlotFigure();
+        Assert.NotNull(fig);
+        byte[] png = fig.RenderToBytes(400, 300);
+        Assert.NotEmpty(png);
+        Assert.Equal(0x89, png[0]);
+    }
 }
