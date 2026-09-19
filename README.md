@@ -148,6 +148,14 @@ GpuStatsAccelerator.EvaluateKde(
 
 ---
 
+## 🆕 What's New in v1.0.2
+
+- **`s_initLock` eliminated via `GpuStatsVizStreamSlot` context pool** — concurrent GPU KDE evaluation no longer serializes on a global lock.
+- **Zero-alloc integer category indexing** — category-to-index mapping operates on stack-allocated span structures with no heap allocation per query.
+- **19 tests** passing (100 %).
+
+---
+
 ## Credits
 
 Developed by Ian Cowley and Antigravity (Google DeepMind).
