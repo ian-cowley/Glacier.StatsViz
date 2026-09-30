@@ -129,4 +129,23 @@ public class GrammarChartTests
         Assert.NotEmpty(png);
         Assert.Equal(0x89, png[0]);
     }
+
+    [Fact]
+    public void Chart_RendersToGlacierPng_PureManagedOutput()
+    {
+        var df = CreateSampleDataFrame();
+        var chart = Chart.FromDataFrame(df)
+            .Encode(x: "Experience", y: "Salary")
+            .WithTitle("Glacier.Graphics OLS Regression")
+            .GeomScatter();
+
+        byte[] png = chart.RenderGlacierPng(500, 350);
+        Assert.NotNull(png);
+        Assert.True(png.Length > 64);
+        Assert.Equal(0x89, png[0]);
+        Assert.Equal(0x50, png[1]);
+        Assert.Equal(0x4E, png[2]);
+        Assert.Equal(0x47, png[3]);
+    }
 }
+

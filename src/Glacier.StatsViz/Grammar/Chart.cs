@@ -199,6 +199,28 @@ public sealed class Chart
         _figure.SavePng(filePath, width, height);
     }
 
+    public void RenderToGlacierPng(string filePath, int width = 1280, int height = 720)
+    {
+        var dir = Path.GetDirectoryName(filePath);
+        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+        var bytes = RenderGlacierPng(width, height);
+        File.WriteAllBytes(filePath, bytes);
+    }
+
+    public byte[] RenderGlacierPng(int width = 1280, int height = 720)
+    {
+        using var fb = new Glacier.Graphics.Raster.LinearFramebuffer(width, height);
+        using var canvas = new Glacier.Graphics.CpuGraphicsCanvas(fb);
+        var theme = _figure.Theme;
+        canvas.Clear(new Glacier.Graphics.Rgba32(theme.FigureBackground.Red, theme.FigureBackground.Green, theme.FigureBackground.Blue, theme.FigureBackground.Alpha));
+        var dims = new Glacier.Plot.Core.PlotDimensions(width, height);
+        var dataRect = new Glacier.Graphics.Vector.VectorPath();
+        dataRect.AddRect(dims.DataLeft, dims.DataTop, dims.DataWidth, dims.DataHeight);
+        canvas.FillPath(dataRect, new Glacier.Graphics.Paint(new Glacier.Graphics.Rgba32(theme.DataBackground.Red, theme.DataBackground.Green, theme.DataBackground.Blue, theme.DataBackground.Alpha), Glacier.Graphics.PaintStyle.Fill));
+        canvas.Flush();
+        return Glacier.Graphics.Codecs.Png.PngEncoder.Encode(fb);
+    }
+
     public void RenderToSvg(string filePath, int width = 1280, int height = 720)
     {
         _figure.SaveSvg(filePath, width, height);
