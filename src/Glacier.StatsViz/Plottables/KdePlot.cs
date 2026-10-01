@@ -1,11 +1,12 @@
 namespace Glacier.StatsViz.Plottables;
 
 using System;
+using Glacier.Graphics;
+using Glacier.Graphics.Vector;
 using Glacier.Plot.Core;
 using Glacier.Plot.Plottables;
 using Glacier.StatsViz.Kde;
 using Glacier.StatsViz.Stats;
-using SkiaSharp;
 
 /// <summary>
 /// Continuous 1D Kernel Density Estimation probability curve with optional area shading.
@@ -55,11 +56,11 @@ public sealed class KdePlot : IPlottable
         return new AxisLimits(_grid[0], _grid[^1], 0, maxD).WithPadding(0.02, 0.08);
     }
 
-    public void Render(SKCanvas canvas, CoordinateConverter converter, PlotTheme theme)
+    public void Render(IGraphicsCanvas canvas, CoordinateConverter converter, PlotTheme theme)
     {
         if (_points < 2) return;
 
-        using var path = new SKPath();
+        var path = new VectorPath();
         path.MoveTo(converter.GetPixelX(_grid[0]), converter.GetPixelY(_density[0]));
 
         for (int i = 1; i < _points; i++)
@@ -69,7 +70,7 @@ public sealed class KdePlot : IPlottable
 
         if (Style.IsFilled)
         {
-            using var fillPath = new SKPath(path);
+            var fillPath = new VectorPath(path);
             float lastPx = converter.GetPixelX(_grid[^1]);
             float firstPx = converter.GetPixelX(_grid[0]);
             float baselinePy = converter.GetPixelY(0.0);
@@ -77,24 +78,14 @@ public sealed class KdePlot : IPlottable
             fillPath.LineTo(firstPx, baselinePy);
             fillPath.Close();
 
-            using var fillPaint = new SKPaint
-            {
-                Style = SKPaintStyle.Fill,
-                Color = Style.Color.WithAlpha(Style.FillAlpha),
-                IsAntialias = true
-            };
-            canvas.DrawPath(fillPath, fillPaint);
+            canvas.FillPath(fillPath, new Paint(Style.Color.WithAlpha(Style.FillAlpha), PaintStyle.Fill));
         }
 
-        using var strokePaint = new SKPaint
-        {
-            Style = SKPaintStyle.Stroke,
-            Color = Style.Color,
-            StrokeWidth = Style.StrokeWidth,
-            IsAntialias = true,
-            StrokeCap = SKStrokeCap.Round,
-            StrokeJoin = SKStrokeJoin.Round
-        };
-        canvas.DrawPath(path, strokePaint);
+        canvas.DrawPath(path, new Paint(
+            Style.Color,
+            PaintStyle.Stroke,
+            Style.StrokeWidth,
+            StrokeJoin.Round,
+            StrokeCap.Round));
     }
 }

@@ -1,10 +1,11 @@
 namespace Glacier.StatsViz.Plottables;
 
 using System;
+using Glacier.Graphics;
+using Glacier.Graphics.Vector;
 using Glacier.Plot.Core;
 using Glacier.Plot.Plottables;
 using Glacier.StatsViz.Stats;
-using SkiaSharp;
 
 /// <summary>
 /// Classical Tukey box-and-whisker plot displaying medians, IQR boxes, whiskers, and outliers.
@@ -37,7 +38,7 @@ public sealed class BoxPlot : IPlottable
         return new AxisLimits(minX, maxX, minY, maxY).WithPadding(0.05, 0.05);
     }
 
-    public void Render(SKCanvas canvas, CoordinateConverter converter, PlotTheme theme)
+    public void Render(IGraphicsCanvas canvas, CoordinateConverter converter, PlotTheme theme)
     {
         if (_stats.Count == 0) return;
 
@@ -51,62 +52,43 @@ public sealed class BoxPlot : IPlottable
         float pyLowWhisker = converter.GetPixelY(_stats.LowerWhisker);
         float pyHighWhisker = converter.GetPixelY(_stats.UpperWhisker);
 
-        using var strokePaint = new SKPaint
-        {
-            Style = SKPaintStyle.Stroke,
-            Color = Style.Color,
-            StrokeWidth = 1.5f,
-            IsAntialias = true
-        };
-
-        using var fillPaint = new SKPaint
-        {
-            Style = SKPaintStyle.Fill,
-            Color = Style.Color.WithAlpha(Style.FillAlpha),
-            IsAntialias = true
-        };
+        var strokePaint = new Paint(Style.Color, PaintStyle.Stroke, 1.5f);
+        var fillPaint = new Paint(Style.Color.WithAlpha(Style.FillAlpha), PaintStyle.Fill);
 
         // 1. Whisker lines
-        canvas.DrawLine(pxCenter, pyQ3, pxCenter, pyHighWhisker, strokePaint);
-        canvas.DrawLine(pxCenter, pyQ1, pxCenter, pyLowWhisker, strokePaint);
+        var whiskerPath = new VectorPath();
+        whiskerPath.AddLine(pxCenter, pyQ3, pxCenter, pyHighWhisker);
+        whiskerPath.AddLine(pxCenter, pyQ1, pxCenter, pyLowWhisker);
 
         // Whisker crossbar caps
         float capHalfWidth = (pxRight - pxLeft) * 0.25f;
-        canvas.DrawLine(pxCenter - capHalfWidth, pyHighWhisker, pxCenter + capHalfWidth, pyHighWhisker, strokePaint);
-        canvas.DrawLine(pxCenter - capHalfWidth, pyLowWhisker, pxCenter + capHalfWidth, pyLowWhisker, strokePaint);
+        whiskerPath.AddLine(pxCenter - capHalfWidth, pyHighWhisker, pxCenter + capHalfWidth, pyHighWhisker);
+        whiskerPath.AddLine(pxCenter - capHalfWidth, pyLowWhisker, pxCenter + capHalfWidth, pyLowWhisker);
+        canvas.DrawPath(whiskerPath, strokePaint);
 
         // 2. IQR Box
         float top = Math.Min(pyQ1, pyQ3);
         float bottom = Math.Max(pyQ1, pyQ3);
-        var boxRect = new SKRect(pxLeft, top, pxRight, bottom);
-        canvas.DrawRect(boxRect, fillPaint);
-        canvas.DrawRect(boxRect, strokePaint);
+        var boxPath = new VectorPath();
+        boxPath.AddRect(pxLeft, top, pxRight - pxLeft, bottom - top);
+        canvas.FillPath(boxPath, fillPaint);
+        canvas.DrawPath(boxPath, strokePaint);
 
         // 3. Median Line
-        using var medianPaint = new SKPaint
-        {
-            Style = SKPaintStyle.Stroke,
-            Color = Colors.White,
-            StrokeWidth = 2.5f,
-            IsAntialias = true
-        };
-        canvas.DrawLine(pxLeft, pyMedian, pxRight, pyMedian, medianPaint);
+        var medianPath = new VectorPath();
+        medianPath.AddLine(pxLeft, pyMedian, pxRight, pyMedian);
+        canvas.DrawPath(medianPath, new Paint(Colors.White, PaintStyle.Stroke, 2.5f));
 
         // 4. Outlier points
         if (ShowOutliers && _stats.Outliers.Length > 0)
         {
-            using var outlierPaint = new SKPaint
-            {
-                Style = SKPaintStyle.Fill,
-                Color = Colors.Crimson,
-                IsAntialias = true
-            };
-
+            var outlierPath = new VectorPath();
             foreach (var outVal in _stats.Outliers)
             {
                 float pyOut = converter.GetPixelY(outVal);
-                canvas.DrawCircle(pxCenter, pyOut, 3.5f, outlierPaint);
+                outlierPath.AddCircle(pxCenter, pyOut, 3.5f);
             }
+            canvas.FillPath(outlierPath, new Paint(Colors.Crimson, PaintStyle.Fill));
         }
     }
 }

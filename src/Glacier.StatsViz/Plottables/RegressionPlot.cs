@@ -1,10 +1,11 @@
 namespace Glacier.StatsViz.Plottables;
 
 using System;
+using Glacier.Graphics;
+using Glacier.Graphics.Vector;
 using Glacier.Plot.Core;
 using Glacier.Plot.Plottables;
 using Glacier.StatsViz.Stats;
-using SkiaSharp;
 
 /// <summary>
 /// Scatter plot overlay with an Ordinary Least Squares (OLS) regression line and confidence envelope.
@@ -52,26 +53,21 @@ public sealed class RegressionPlot : IPlottable
         return AxisLimits.FromData(_x, _y).WithPadding(0.05, 0.05);
     }
 
-    public void Render(SKCanvas canvas, CoordinateConverter converter, PlotTheme theme)
+    public void Render(IGraphicsCanvas canvas, CoordinateConverter converter, PlotTheme theme)
     {
         if (_x.Length == 0) return;
 
         // 1. Draw Scatter Points
         if (ShowScatter)
         {
-            using var scatterPaint = new SKPaint
-            {
-                Style = SKPaintStyle.Fill,
-                Color = Style.Color.WithAlpha(160),
-                IsAntialias = true
-            };
-
+            var scatterPath = new VectorPath();
             for (int i = 0; i < _x.Length; i++)
             {
                 float px = converter.GetPixelX(_x[i]);
                 float py = converter.GetPixelY(_y[i]);
-                canvas.DrawCircle(px, py, 3.5f, scatterPaint);
+                scatterPath.AddCircle(px, py, 3.5f);
             }
+            canvas.FillPath(scatterPath, new Paint(Style.Color.WithAlpha(160), PaintStyle.Fill));
         }
 
         // 2. Draw Confidence Interval Envelope
@@ -92,7 +88,7 @@ public sealed class RegressionPlot : IPlottable
 
         if (ShowConfidenceBand)
         {
-            using var bandPath = new SKPath();
+            var bandPath = new VectorPath();
             bandPath.MoveTo(converter.GetPixelX(evalX[0]), converter.GetPixelY(upperY[0]));
 
             for (int i = 1; i < steps; i++)
@@ -107,29 +103,17 @@ public sealed class RegressionPlot : IPlottable
 
             bandPath.Close();
 
-            using var bandPaint = new SKPaint
-            {
-                Style = SKPaintStyle.Fill,
-                Color = Style.Color.WithAlpha(45),
-                IsAntialias = true
-            };
-            canvas.DrawPath(bandPath, bandPaint);
+            canvas.FillPath(bandPath, new Paint(Style.Color.WithAlpha(45), PaintStyle.Fill));
         }
 
         // 3. Draw Trend Line
-        using var linePaint = new SKPaint
-        {
-            Style = SKPaintStyle.Stroke,
-            Color = Style.Color,
-            StrokeWidth = Math.Max(2.0f, Style.StrokeWidth),
-            IsAntialias = true
-        };
-
         float px1 = converter.GetPixelX(_minX);
         float py1 = converter.GetPixelY(_reg.Predict(_minX));
         float px2 = converter.GetPixelX(_maxX);
         float py2 = converter.GetPixelY(_reg.Predict(_maxX));
 
-        canvas.DrawLine(px1, py1, px2, py2, linePaint);
+        var linePath = new VectorPath();
+        linePath.AddLine(px1, py1, px2, py2);
+        canvas.DrawPath(linePath, new Paint(Style.Color, PaintStyle.Stroke, Math.Max(2.0f, Style.StrokeWidth)));
     }
 }

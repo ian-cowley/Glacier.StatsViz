@@ -147,5 +147,40 @@ public class GrammarChartTests
         Assert.Equal(0x4E, png[2]);
         Assert.Equal(0x47, png[3]);
     }
+
+    [Fact]
+    public void Chart_RendersToGlacierCanvas_AndStream_ZeroSkiaSharpAssembliesLoaded()
+    {
+        var df = CreateSampleDataFrame();
+        var chart = Chart.FromDataFrame(df)
+            .Encode(x: "Department", y: "Salary")
+            .WithTitle("Department Salary Analysis")
+            .GeomViolin()
+            .GeomBox();
+
+        // 1. Render to IGraphicsCanvas
+        using var fb = new Glacier.Graphics.Raster.LinearFramebuffer(600, 400);
+        using var canvas = new Glacier.Graphics.CpuGraphicsCanvas(fb);
+        chart.RenderToGlacierCanvas(canvas, 600, 400);
+        Assert.False(fb.AsByteSpan().IsEmpty);
+
+        // 2. Render to PNG stream
+        using var ms = new MemoryStream();
+        chart.RenderGlacierPng(ms, 600, 400);
+        byte[] png = ms.ToArray();
+        Assert.True(png.Length > 64);
+        Assert.Equal(0x89, png[0]);
+        Assert.Equal(0x50, png[1]);
+        Assert.Equal(0x4E, png[2]);
+        Assert.Equal(0x47, png[3]);
+
+        // 3. Verify zero SkiaSharp assemblies loaded in process
+        var loadedAssemblies = System.AppDomain.CurrentDomain.GetAssemblies();
+        foreach (var asm in loadedAssemblies)
+        {
+            string name = asm.GetName().Name ?? "";
+            Assert.DoesNotContain("SkiaSharp", name, System.StringComparison.OrdinalIgnoreCase);
+        }
+    }
 }
 

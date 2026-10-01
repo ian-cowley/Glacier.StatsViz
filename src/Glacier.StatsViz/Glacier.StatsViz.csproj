@@ -29,13 +29,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\..\Glacier.Plot\src\Glacier.Plot\Glacier.Plot.csproj" />
     <PackageReference Include="Glacier.Graphics" Version="1.0.0" />
-    <PackageReference Include="Glacier.Plot" Version="1.0.2" />
     <PackageReference Include="Glacier.Polaris" Version="1.0.17" />
     <PackageReference Include="Glacier.Tensor" Version="1.0.7" />
     <PackageReference Include="Glacier.Gpu" Version="1.0.7" />
-    <PackageReference Include="SkiaSharp" Version="2.88.9" />
-    <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="2.88.9" />
-    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="2.88.9" />
   </ItemGroup>
 </Project>

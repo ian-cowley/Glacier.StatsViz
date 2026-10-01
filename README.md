@@ -34,7 +34,7 @@ In Python, **Seaborn** is the standard for statistical visualization (distributi
 
 ## 🖼️ Visual Gallery: Real Rendered Statistical Figures
 
-All figures below are generated directly from the included `Glacier.StatsViz.Demo` sample using AVX-512 SIMD / GPU acceleration and SkiaSharp rasterization:
+All figures below are generated directly from the included `Glacier.StatsViz.Demo` sample using AVX-512 SIMD / GPU acceleration and `Glacier.Graphics` / `Glacier.Plot` rasterization:
 
 | Multi-Category Violin Plot (IQR & Medians) | Vectorized 1M-Point Gaussian KDE Curve |
 | :---: | :---: |
@@ -69,8 +69,8 @@ All figures below are generated directly from the included `Glacier.StatsViz.Dem
                    │ Render Primitives (Polygons, Lines, Splines)
                    ▼
 ┌──────────────────────────────────────┐
-│ Glacier.Plot Hardware Renderer       │
-│ SkiaSharp / Direct2D / SVG Output    │
+│ Glacier.Plot & Glacier.Graphics      │
+│ LinearFramebuffer / Direct2D / SVG   │
 └──────────────────────────────────────┘
 ```
 

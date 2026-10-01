@@ -3,6 +3,7 @@ namespace Glacier.StatsViz.Grammar;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Glacier.Graphics;
 using Glacier.Plot.Core;
 using Glacier.Plot.Figures;
 using Glacier.Plot.Interop;
@@ -11,7 +12,6 @@ using Glacier.Polaris;
 using Glacier.Polaris.Data;
 using Glacier.StatsViz.Plottables;
 using Glacier.StatsViz.Stats;
-using SkiaSharp;
 
 /// <summary>
 /// Declarative Grammar of Graphics chart builder for statistical visualization.
@@ -194,6 +194,21 @@ public sealed class Chart
 
     public Figure ToGlacierPlotFigure() => _figure;
 
+    public void RenderToGlacierCanvas(IGraphicsCanvas canvas, int width, int height)
+    {
+        _figure.Render(canvas, width, height);
+    }
+
+    public void RenderGlacierPng(Stream stream, int width, int height)
+    {
+        _figure.RenderGlacierPng(stream, width, height);
+    }
+
+    public byte[] RenderGlacierPng(int width = 1280, int height = 720)
+    {
+        return _figure.RenderGlacierPng(width, height);
+    }
+
     public void RenderToPng(string filePath, int width = 1280, int height = 720)
     {
         _figure.SavePng(filePath, width, height);
@@ -201,24 +216,7 @@ public sealed class Chart
 
     public void RenderToGlacierPng(string filePath, int width = 1280, int height = 720)
     {
-        var dir = Path.GetDirectoryName(filePath);
-        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
-        var bytes = RenderGlacierPng(width, height);
-        File.WriteAllBytes(filePath, bytes);
-    }
-
-    public byte[] RenderGlacierPng(int width = 1280, int height = 720)
-    {
-        using var fb = new Glacier.Graphics.Raster.LinearFramebuffer(width, height);
-        using var canvas = new Glacier.Graphics.CpuGraphicsCanvas(fb);
-        var theme = _figure.Theme;
-        canvas.Clear(new Glacier.Graphics.Rgba32(theme.FigureBackground.Red, theme.FigureBackground.Green, theme.FigureBackground.Blue, theme.FigureBackground.Alpha));
-        var dims = new Glacier.Plot.Core.PlotDimensions(width, height);
-        var dataRect = new Glacier.Graphics.Vector.VectorPath();
-        dataRect.AddRect(dims.DataLeft, dims.DataTop, dims.DataWidth, dims.DataHeight);
-        canvas.FillPath(dataRect, new Glacier.Graphics.Paint(new Glacier.Graphics.Rgba32(theme.DataBackground.Red, theme.DataBackground.Green, theme.DataBackground.Blue, theme.DataBackground.Alpha), Glacier.Graphics.PaintStyle.Fill));
-        canvas.Flush();
-        return Glacier.Graphics.Codecs.Png.PngEncoder.Encode(fb);
+        _figure.SavePng(filePath, width, height);
     }
 
     public void RenderToSvg(string filePath, int width = 1280, int height = 720)
@@ -341,4 +339,16 @@ public sealed class Chart
             return dict;
         }
     }
+}
+
+/// <summary>
+/// First-party Glacier.Graphics rendering extensions for Chart.
+/// </summary>
+public static class StatsVizGlacierExtensions
+{
+    public static void RenderToGlacierCanvas(this Chart chart, IGraphicsCanvas canvas, int width, int height)
+        => chart.RenderToGlacierCanvas(canvas, width, height);
+
+    public static void RenderGlacierPng(this Chart chart, Stream stream, int width, int height)
+        => chart.RenderGlacierPng(stream, width, height);
 }

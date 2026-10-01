@@ -1,11 +1,12 @@
 namespace Glacier.StatsViz.Plottables;
 
 using System;
+using Glacier.Graphics;
+using Glacier.Graphics.Vector;
 using Glacier.Plot.Core;
 using Glacier.Plot.Plottables;
 using Glacier.StatsViz.Kde;
 using Glacier.StatsViz.Stats;
-using SkiaSharp;
 
 /// <summary>
 /// Symmetric violin plot displaying continuous Kernel Density Estimation (KDE) and embedded inner quartiles.
@@ -78,12 +79,12 @@ public sealed class ViolinPlot : IPlottable
         return new AxisLimits(minX, maxX, minY, maxY).WithPadding(0.05, 0.05);
     }
 
-    public void Render(SKCanvas canvas, CoordinateConverter converter, PlotTheme theme)
+    public void Render(IGraphicsCanvas canvas, CoordinateConverter converter, PlotTheme theme)
     {
         if (_gridY.Length < 2) return;
 
         // 1. Draw Symmetric Violin Body
-        using var bodyPath = new SKPath();
+        var bodyPath = new VectorPath();
         int n = _gridY.Length;
 
         // Right side (ascending Y)
@@ -108,23 +109,8 @@ public sealed class ViolinPlot : IPlottable
 
         bodyPath.Close();
 
-        using var fillPaint = new SKPaint
-        {
-            Style = SKPaintStyle.Fill,
-            Color = Style.Color.WithAlpha(Style.FillAlpha),
-            IsAntialias = true
-        };
-
-        using var strokePaint = new SKPaint
-        {
-            Style = SKPaintStyle.Stroke,
-            Color = Style.Color,
-            StrokeWidth = Style.StrokeWidth,
-            IsAntialias = true
-        };
-
-        canvas.DrawPath(bodyPath, fillPaint);
-        canvas.DrawPath(bodyPath, strokePaint);
+        canvas.FillPath(bodyPath, new Paint(Style.Color.WithAlpha(Style.FillAlpha), PaintStyle.Fill));
+        canvas.DrawPath(bodyPath, new Paint(Style.Color, PaintStyle.Stroke, Style.StrokeWidth));
 
         // 2. Embedded Miniature Box & Quartiles
         if (ShowBox && _stats.IQR > 0)
@@ -136,42 +122,27 @@ public sealed class ViolinPlot : IPlottable
             float pyHighWhisker = converter.GetPixelY(_stats.UpperWhisker);
 
             // Whisker line
-            using var whiskerPaint = new SKPaint
-            {
-                Style = SKPaintStyle.Stroke,
-                Color = Colors.White.WithAlpha(200),
-                StrokeWidth = 2.0f,
-                IsAntialias = true
-            };
-            canvas.DrawLine(pxCenter, pyLowWhisker, pxCenter, pyHighWhisker, whiskerPaint);
+            var whiskerPath = new VectorPath();
+            whiskerPath.AddLine(pxCenter, pyLowWhisker, pxCenter, pyHighWhisker);
+            canvas.DrawPath(whiskerPath, new Paint(Colors.White.WithAlpha(200), PaintStyle.Stroke, 2.0f));
 
             // Miniature IQR box
             float boxHalfWidth = 5.0f;
             float top = Math.Min(pyQ1, pyQ3);
             float bottom = Math.Max(pyQ1, pyQ3);
 
-            var boxRect = new SKRect(pxCenter - boxHalfWidth, top, pxCenter + boxHalfWidth, bottom);
-
-            using var boxPaint = new SKPaint
-            {
-                Style = SKPaintStyle.Fill,
-                Color = Colors.DeepSlate,
-                IsAntialias = true
-            };
-            canvas.DrawRect(boxRect, boxPaint);
-            canvas.DrawRect(boxRect, whiskerPaint);
+            var boxPath = new VectorPath();
+            boxPath.AddRect(pxCenter - boxHalfWidth, top, boxHalfWidth * 2f, bottom - top);
+            canvas.FillPath(boxPath, new Paint(Colors.DeepSlate, PaintStyle.Fill));
+            canvas.DrawPath(boxPath, new Paint(Colors.White.WithAlpha(200), PaintStyle.Stroke, 2.0f));
 
             // White Median Dot
             if (ShowMedian)
             {
                 float pyMedian = converter.GetPixelY(_stats.Median);
-                using var dotPaint = new SKPaint
-                {
-                    Style = SKPaintStyle.Fill,
-                    Color = Colors.White,
-                    IsAntialias = true
-                };
-                canvas.DrawCircle(pxCenter, pyMedian, 3.5f, dotPaint);
+                var dotPath = new VectorPath();
+                dotPath.AddCircle(pxCenter, pyMedian, 3.5f);
+                canvas.FillPath(dotPath, new Paint(Colors.White, PaintStyle.Fill));
             }
         }
     }
