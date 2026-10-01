@@ -12,7 +12,7 @@
 
     <!-- NuGet Package Properties -->
     <PackageId>Glacier.StatsViz</PackageId>
-    <Version>1.0.3</Version>
+    <Version>1.0.4</Version>
     <Authors>Ian Cowley</Authors>
     <Company>Glacier High-Performance Ecosystem</Company>
     <Description>Declarative statistical graphics grammar and vectorized KDE engine for .NET 10. Native C# alternative to Seaborn featuring AVX-512 Gaussian KDE, violin plots, correlation heatmaps, regression trendlines, Glacier.Graphics managed rendering, and pair plot grids.</Description>
@@ -29,10 +29,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\Glacier.Plot\src\Glacier.Plot\Glacier.Plot.csproj" />
+    <PackageReference Include="Glacier.Plot" Version="1.0.4" />
     <PackageReference Include="Glacier.Graphics" Version="1.0.0" />
-    <PackageReference Include="Glacier.Polaris" Version="1.0.17" />
-    <PackageReference Include="Glacier.Tensor" Version="1.0.7" />
-    <PackageReference Include="Glacier.Gpu" Version="1.0.7" />
+    <PackageReference Include="Glacier.Polaris" Version="1.0.19" />
+    <PackageReference Include="Glacier.Tensor" Version="1.0.9" />
+    <PackageReference Include="Glacier.Gpu" Version="1.0.8" />
   </ItemGroup>
 </Project>
