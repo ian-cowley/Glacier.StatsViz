@@ -103,6 +103,9 @@ public class GrammarChartTests
             Assert.True(File.Exists(tempSvg));
             string content = File.ReadAllText(tempSvg);
             Assert.Contains("<svg", content);
+            Assert.Contains("<image ", content);
+            var xmlDoc = new System.Xml.XmlDocument();
+            xmlDoc.LoadXml(content);
         }
         finally
         {
@@ -180,6 +183,51 @@ public class GrammarChartTests
         {
             string name = asm.GetName().Name ?? "";
             Assert.DoesNotContain("SkiaSharp", name, System.StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
+    public void Chart_WiresColorSizeAndFacetGridAesthetics()
+    {
+        var df = CreateSampleDataFrame();
+
+        // Color + Size encoded bubble scatter + grouped KDE layers
+        var bubbleChart = Chart.FromDataFrame(df)
+            .Encode(x: "Experience", y: "Salary", color: "Department", size: "Experience")
+            .GeomScatter(alpha: 0.8f);
+
+        Assert.Equal(2, bubbleChart.Layers.Count); // Engineering + Marketing groups
+        byte[] bubblePng = bubbleChart.RenderGlacierPng(500, 350);
+        Assert.Equal(0x89, bubblePng[0]);
+
+        var groupedKde = Chart.FromDataFrame(df)
+            .Encode(x: "Salary", color: "Department")
+            .GeomKde();
+        Assert.Equal(2, groupedKde.Layers.Count);
+
+        // FacetGrid small-multiples rendering to both PNG and compliant SVG
+        var facetChart = Chart.FromDataFrame(df)
+            .Encode(x: "Experience", y: "Salary")
+            .GeomScatter()
+            .AddRegressionTrend()
+            .FacetGrid(col: "Department");
+
+        byte[] facetPng = facetChart.RenderGlacierPng(600, 300);
+        Assert.True(facetPng.Length > 100);
+        Assert.Equal(0x89, facetPng[0]);
+
+        string tempSvg = Path.Combine(Path.GetTempPath(), $"statsviz_facet_{Path.GetRandomFileName()}.svg");
+        try
+        {
+            facetChart.RenderToSvg(tempSvg, 600, 300);
+            string xml = File.ReadAllText(tempSvg);
+            var doc = new System.Xml.XmlDocument();
+            doc.LoadXml(xml);
+            Assert.Contains("<image ", xml);
+        }
+        finally
+        {
+            if (File.Exists(tempSvg)) File.Delete(tempSvg);
         }
     }
 }

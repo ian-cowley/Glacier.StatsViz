@@ -14,7 +14,8 @@ public class GpuStatsVizTests
         bool nvidia = GpuStatsAccelerator.IsNvidiaAvailable;
         bool amd = GpuStatsAccelerator.IsAmdAvailable;
         bool any = GpuStatsAccelerator.IsGpuAvailable;
-        Assert.True(true);
+        Assert.False(amd);
+        Assert.Equal(nvidia, any);
     }
 
     [Fact]

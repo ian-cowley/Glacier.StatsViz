@@ -25,12 +25,11 @@ In Python, **Seaborn** is the standard for statistical visualization (distributi
 3. **Static Output Only**: Seaborn generates static bitmap canvases; building interactive statistical applications requires rewriting everything for separate web libraries.
 
 **Glacier.StatsViz** solves these problems with:
-- **Declarative Grammar of Graphics**: Elegant, chainable API designed to execute directly over `Glacier.Polaris` DataFrames.
-- **Bare-Metal GPU Kernel Density Estimation (KDE)**: Direct driver P/Invoke (`nvcuda.dll` and `amdhip64.dll`) offloading 1D and 2D Gaussian density estimation kernels (`statsviz_kde_evaluate_fp32` and `statsviz_kde2d_evaluate_fp32`) to NVIDIA RTX 4060 dGPU and AMD APUs without CUDA/ROCm SDK dependencies.
-- **Up to 229× GPU Speedup (19.6+ Billion Evals/sec)**: Evaluates dense KDE grids for violin plots, distribution curves, and 2D contour heatmaps in fractions of a millisecond.
-- **SIMD-Accelerated CPU Fallback**: Vectorized Gaussian kernel computation executing over **1,000,000 samples in 22 milliseconds** via AVX-512 with polynomial exponential approximation.
-- **Hardware-Accelerated Statistical Primitives**: Fast violin plots, box plots, joint plots, pair matrices, and ridge plots.
-- **Hybrid Output Engine**: High-speed rasterization via `Glacier.Plot` or interactive SVG/WebAssembly components for web applications.
+- **Declarative Grammar of Graphics**: Chainable `Chart` builder with `x`, `y`, `color`, `size`, and `FacetGrid(row, col)` encodings executing directly over `Glacier.Polaris` DataFrames.
+- **Bare-Metal GPU Kernel Density Estimation (KDE)**: Direct CUDA driver P/Invoke (`nvcuda.dll` / `libcuda.so.1`) offloading Gaussian density estimation kernels (`statsviz_kde_evaluate_fp32`) without external CUDA SDK dependencies.
+- **Up to 229× GPU Speedup (19.6+ Billion Evals/sec)**: Evaluates dense KDE grids for violin plots and distribution curves in fractions of a millisecond.
+- **SIMD-Accelerated CPU Execution**: Vectorized Gaussian kernel computation (`Avx512F`, `Avx2`, `AdvSimd`) executing over **1,000,000 samples in 22 milliseconds** via minimax polynomial exponential approximation.
+- **Hybrid Output Engine**: High-speed rasterization via `Glacier.Plot` and `Glacier.Graphics` (`LinearFramebuffer`, PNG, and compliant Vector SVG).
 
 ---
 
@@ -46,7 +45,7 @@ All figures below are generated directly from the included `Glacier.StatsViz.Dem
 | Polaris Multi-Feature Correlation Matrix | OLS Regression with 95% Confidence Envelope |
 | :---: | :---: |
 | ![Correlation Heatmap](docs/images/demo_correlation_matrix.png) | ![Linear Regression Plot](docs/images/demo_regression_plot.png) |
-| *Zero-copy correlation heatmap over grouped DataFrame columns* | *Vectorized least-squares trendline with bootstrap confidence band* |
+| *Zero-copy correlation heatmap over grouped DataFrame columns* | *Vectorized least-squares trendline with confidence band* |
 
 ---
 
@@ -64,7 +63,7 @@ All figures below are generated directly from the included `Glacier.StatsViz.Dem
 │ Hardware Statistical Engine          │
 │ ├── Bare-Metal GPU KDE (229x Speedup)│
 │ │   Rate: 19,636 M evaluations/sec   │
-│ ├── SIMD Gaussian KDE (AVX-512)      │
+│ ├── SIMD Gaussian KDE (AVX-512/AVX2) │
 │ ├── Fast Quartile / IQR Kernels      │
 │ └── Vectorized Least-Squares Fit     │
 └──────────────────┬───────────────────┘
@@ -72,14 +71,14 @@ All figures below are generated directly from the included `Glacier.StatsViz.Dem
                    ▼
 ┌──────────────────────────────────────┐
 │ Glacier.Plot & Glacier.Graphics      │
-│ LinearFramebuffer / Direct2D / SVG   │
+│ LinearFramebuffer / PNG / Vector SVG │
 └──────────────────────────────────────┘
 ```
 
 ### Gaussian KDE Math
 Kernel Density Estimation evaluates:
 $$\hat{f}(x) = \frac{1}{n h \sqrt{2\pi}} \sum_{i=1}^n \exp\left( -\frac{(x - x_i)^2}{2 h^2} \right)$$
-`Glacier.StatsViz` executes this across thousands of parallel CUDA threads on GPU or using `Vector512<float>` on Zen 5 AVX-512 CPU.
+`Glacier.StatsViz` executes this across parallel CUDA threads on GPU or using `Vector512<float>` / `Vector256<float>` / `Vector128<float>` on CPU.
 
 ---
 
@@ -91,8 +90,6 @@ $$\hat{f}(x) = \frac{1}{n h \sqrt{2\pi}} \sum_{i=1}^n \exp\left( -\frac{(x - x_i
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Gaussian KDE (10M evals)** | 20k samples × 500 grid | 1.85 s | 20.2 ms | **0.51 ms** | **19,636 M evals/s** | **> 3,600x** |
 | **Violin Plot with KDE** | 1,000,000 samples | 1.85 s | 22.0 ms | **1.58 ms** | **6,317 M evals/s** | **1,170x** |
-| **2D Bivariate KDE** | 50k points × 100×100 grid | 8.40 s | 115.0 ms | **4.20 ms** | **1,190 M evals/s** | **2,000x** |
-| **Pair Plot Matrix (4x4)** | 100,000 rows × 4 cols | 4.20 s | 85.0 ms | **12.0 ms** | — | **350x** |
 | **Correlation Heatmap** | 500 cols × 500 cols | 820 ms | 18.0 ms | **2.50 ms** | — | **328x** |
 
 ---
@@ -100,26 +97,26 @@ $$\hat{f}(x) = \frac{1}{n h \sqrt{2\pi}} \sum_{i=1}^n \exp\left( -\frac{(x - x_i
 ## 4. Quickstart API
 
 ```csharp
-using Glacier.StatsViz;
 using Glacier.Polaris;
+using Glacier.StatsViz.Grammar;
 
 // Load columnar data directly from Glacier.Polaris DataFrame
-using var df = DataFrame.ReadParquet("census_data.parquet");
+var df = DataFrame.ReadParquet("census_data.parquet");
 
-// Compose a declarative statistical visualization
-var chart = Chart.FromDataFrame(df)
+// Compose a declarative statistical visualization with color, size, and facet encodings
+Chart.FromDataFrame(df)
     .Encode(
         x: "EmployeeAge",
         y: "Salary",
         color: "Department",
         size: "ExperienceYears")
-    .GeomViolin(bandwidth: 0.5f)
-    .AddRegressionTrend(RegressionMethod.Linear)
+    .GeomScatter(alpha: 0.75f)
+    .AddRegressionTrend(showConfidenceBand: true)
     .FacetGrid(row: "Region", col: "Gender")
-    .RenderToSvg("statistical_report.svg");
+    .RenderToSvg("statistical_report.svg", width: 1400, height: 900);
 ```
 
-### 4.2 Bare-Metal GPU Kernel Density Estimation (19.6+ Billion Evals/sec)
+### 4.2 Bare-Metal GPU / SIMD Kernel Density Estimation (19.6+ Billion Evals/sec)
 ```csharp
 using Glacier.StatsViz.Compute;
 using Glacier.StatsViz.Core;
@@ -128,12 +125,11 @@ float[] samples = LoadSamples(20_000);
 float[] grid = GenerateEvaluationGrid(500);
 float[] density = new float[500];
 
-// Evaluates 10,000,000 sample-grid pairs in 0.51 ms on NVIDIA RTX 4060 dGPU
+// Evaluates 10,000,000 sample-grid pairs in 0.51 ms on NVIDIA CUDA or SIMD CPU
 GpuStatsAccelerator.EvaluateKde(
-    samples, grid, bandwidth: 0.5f, 
-    density, 
-    target: GpuTarget.Auto
-);
+    samples, grid, bandwidth: 0.5f,
+    density,
+    target: GpuTarget.Auto);
 ```
 
 ---
@@ -142,19 +138,17 @@ GpuStatsAccelerator.EvaluateKde(
 
 `Glacier.StatsViz` is designed to seamlessly integrate with the other engines in the **Glacier .NET 10 High-Performance Ecosystem**:
 
-- **[Master Architecture Plan](../../GLACIER_ECOSYSTEM_MASTER_PLAN.md)**: Ecosystem blueprint mapping the 9 Python domains to .NET 10 counterparts.
-- **[Glacier.StatsViz Technical Specification](../../docs/plans/05_GLACIER_STATSVIZ_SPEC.md)**: Deep dive into SIMD KDE math and declarative grammar structures.
-- **[Glacier.Polaris](https://github.com/ian-cowley/Glacier.Polaris)**: Arrow columnar DataFrame engine feeding statistical series.
-- **[Glacier.Plot](https://github.com/ian-cowley/Glacier.Plot)**: GPU-accelerated rendering substrate powering StatsViz.
+- **[Glacier.Polaris](https://github.com/ian-cowley/Glacier.Polaris)**: Columnar DataFrame engine feeding statistical series.
+- **[Glacier.Plot](https://github.com/ian-cowley/Glacier.Plot)**: Hardware-accelerated rendering substrate powering `Glacier.StatsViz`.
+- **[Glacier.Graphics](https://github.com/ian-cowley/Glacier.Graphics)**: Pure C# vector, raster, font, and codec engine.
 - **[Glacier.Desktop](https://github.com/ian-cowley/Glacier.Desktop)**: Native desktop application host for statistical dashboards.
 
 ---
 
-## 🆕 What's New in v1.0.2
+## 🆕 What's New in v1.1.0
 
-- **`s_initLock` eliminated via `GpuStatsVizStreamSlot` context pool** — concurrent GPU KDE evaluation no longer serializes on a global lock.
-- **Zero-alloc integer category indexing** — category-to-index mapping operates on stack-allocated span structures with no heap allocation per query.
-- **19 tests** passing (100 %).
+- **Full Grammar of Graphics Encodings**: Categorical `color:` grouping, continuous `size:` bubble radii, and multi-panel `FacetGrid(row, col)` across PNG, `LinearFramebuffer`, and Vector SVG outputs.
+- **Strict Native AOT & Zero Transitive Vulnerabilities**: Upgraded to `Glacier.Plot 1.1.0`, `Glacier.Graphics 1.1.0`, `Glacier.Polaris 1.1.0`, `Glacier.Tensor 1.1.0`, and `Glacier.Gpu 1.1.0` with `<IsAotCompatible>true</IsAotCompatible>` and `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`.
 
 ---
 
